@@ -1,71 +1,81 @@
 # AI Virtual Try-On
 
-This project is a web application that allows users to virtually try on clothing using AI. It is built with React, Vite, TypeScript, and Tailwind CSS, and it uses the Google Gemini API to power the virtual try-on functionality.
+> [!IMPORTANT]
+> **DEMO ONLY**: This application is provided for demonstration purposes only and is not intended for production use. It showcases the capabilities of Generative AI for virtual try-on experiences.
+
+A web application that allows users to virtually try on clothing using AI. Built with React, Vite, TypeScript, and Tailwind CSS, utilizing the Google Gemini API for the virtual try-on functionality.
 
 ## Features
 
-*   Upload an image of a person and an image of a piece of clothing.
-*   The AI will generate an image of the person wearing the clothing.
+*   **Virtual Try-On**: Upload a user image and a garment image to generate a try-on result.
+*   **AI-Powered**: Uses Google's Gemini models for high-quality image generation.
+*   **Modern UI**: Built with React and Tailwind CSS for a responsive experience.
+
+## Tech Stack
+
+*   **Frontend**: React, Vite, TypeScript
+*   **Styling**: Tailwind CSS
+*   **AI**: Google Gemini API (`@google/genai`)
 
 ## Getting Started
 
 ### Prerequisites
 
-*   Node.js and npm installed on your machine.
-*   A Google Gemini API key.
+*   Node.js (v18+ recommended)
+*   npm
+*   A Google Gemini API key used for the VTO generation.
 
 ### Installation
 
-1.  Clone the repository:
+1.  **Clone the repository:**
     ```bash
     git clone https://gitlab.com/google-cloud-ce/googlers/mostaghim/VTO-FBD.git
     cd VTO-FBD
     ```
 
-2.  Install the dependencies:
+2.  **Install dependencies:**
     ```bash
     npm install
     ```
 
-3.  Create your own `.env` file in the root of the project. This file is not tracked by Git, so you will need to create it yourself. Add your Google Gemini API key to the file:
-    ```
-    VITE_GEMINI_API_KEY=your-api-key
+3.  **Environment Setup:**
+    Create a `.env` file in the root directory and add your Gemini API key:
+    ```env
+    VITE_GEMINI_API_KEY=your_gemini_api_key_here
     ```
 
 ### Running the Application
 
-To start the development server, run:
+To start the development server:
 
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173`.
+The application will be available at [http://localhost:3000](http://localhost:3000).
 
 ## Building for Production
 
-To create a production build of the application, run:
+To create a production build:
 
 ```bash
 npm run build
 ```
 
-This will create a `dist` folder with the optimized and minified files.
+This generates a `dist` folder with optimized assets.
 
-## Docker
+## Docker Support
 
-This project includes a `Dockerfile` and `nginx.conf` to build and run the application in a Docker container.
+You can also run the application using Docker.
 
-To build the Docker image, run:
+1.  **Build the image:**
+    ```bash
+    docker build -t ai-virtual-try-on .
+    ```
 
-```bash
-docker build -t ai-virtual-try-on .
-```
+2.  **Run the container:**
+    ```bash
+    docker run -p 8080:80 ai-virtual-try-on
+    ```
 
-To run the Docker container, run:
-
-```bash
-docker run -p 8080:80 ai-virtual-try-on
-```
-
-The application will be available at `http://localhost:8080`.
+    The app will be accessible at [http://localhost:8080](http://localhost:8080).
