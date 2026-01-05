@@ -27,7 +27,7 @@ This project is a web application that allows users to virtually try on clothing
     npm install
     ```
 
-3.  Create a `.env` file in the root of the project and add your Google Gemini API key:
+3.  Create your own `.env` file in the root of the project. This file is not tracked by Git, so you will need to create it yourself. Add your Google Gemini API key to the file:
     ```
     VITE_GEMINI_API_KEY=your-api-key
     ```
