@@ -5,7 +5,7 @@ import { Garment, UploadedImage } from '../types.ts';
 // Initialize lazily to avoid crash if env var is missing at module load
 let ai: GoogleGenAI | null = null;
 
-const getAiClient = () => {
+const getAiClient = (): GoogleGenAI => {
   if (ai) return ai;
 
   // Runtime environment (Cloud Run) || Build-time environment (Local/Vite)

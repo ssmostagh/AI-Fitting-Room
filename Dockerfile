@@ -30,7 +30,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Expose port (Cloud Run defaults to 8080)
-# Expose port (Cloud Run defaults to 8080)
 EXPOSE 8080
 
 COPY entrypoint.sh /docker-entrypoint.sh
