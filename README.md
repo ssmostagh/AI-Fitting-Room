@@ -67,6 +67,7 @@ This generates a `dist` folder with optimized assets.
 ## Docker Support
 
 You can also run the application using Docker.
+-   **Architecture:** Docker images should always be built for `amd64/linux`.
 
 1.  **Build the image:**
     ```bash
