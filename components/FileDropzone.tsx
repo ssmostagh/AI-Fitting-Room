@@ -120,7 +120,7 @@ export default function FileDropzone({ onFileUpload, preview, icon, title, isMin
           <span className="font-semibold">Click to upload</span> or drag and drop
         </p>
         <p className="text-xs text-gray-500">
-          {isMini ? 'Add garment' : `Upload ${title}`}
+          {isMini ? `Add ${title}` : `Upload ${title}`}
         </p>
       </div>
       <input

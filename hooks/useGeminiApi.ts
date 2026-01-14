@@ -1,6 +1,15 @@
+import { GoogleGenAI, Modality, Part, SchemaType as GoogleSchemaType } from '@google/genai';
+import { Garment, UploadedImage, BodyAnalysis, SizeRecommendation } from '../types.ts';
 
-import { GoogleGenAI, Modality, Part } from '@google/genai';
-import { Garment, UploadedImage } from '../types.ts';
+// Fallback if SchemaType is not exported
+enum SchemaType {
+  STRING = "STRING",
+  NUMBER = "NUMBER",
+  INTEGER = "INTEGER",
+  BOOLEAN = "BOOLEAN",
+  ARRAY = "ARRAY",
+  OBJECT = "OBJECT"
+}
 
 // Initialize lazily to avoid crash if env var is missing at module load
 let ai: GoogleGenAI | null = null;
@@ -61,6 +70,16 @@ export function useGeminiApi() {
       isolatedGarments = initialGarments.map(g => ({
         ...g,
         description: consolidatedDescription
+      }));
+
+    } else if (initialGarments.length === 1) {
+      // SINGLE IMAGE OPTIMIZATION: Skip explicit analysis for speed
+      onProgress("Processing garment...");
+
+      // We skip the detailed text analysis and rely on the visual prompt.
+      isolatedGarments = initialGarments.map(g => ({
+        ...g,
+        description: "" // Visual-only processing
       }));
 
     } else {
@@ -169,7 +188,7 @@ export function useGeminiApi() {
 -   SUBJECT: The first image.
 -   GARMENTS: The subsequent images.
 -   ACTION: Dress the SUBJECT in the GARMENTS.
-    -   New garments: USE VISUAL TEXTURE FROM IMAGES. (Description: ${garmentDescriptions}).
+    -   New garments: USE VISUAL TEXTURE FROM IMAGES.${garmentDescriptions ? ` (Description: ${garmentDescriptions})` : ""}.
     -   ${hasNewTop ? "REPLACE the subject's top." : "KEEP the subject's top."}
     -   ${hasNewBottoms ? "REPLACE the subject's bottoms." : "KEEP the subject's bottoms."}
     -   ${hasDress ? "Ensure the garment is worn as a full-body outfit, completely replacing the original outfit. Do not render as a vest." : "Ensure seamless integration."}
@@ -206,5 +225,190 @@ export function useGeminiApi() {
     throw new Error("The AI failed to generate an image. It may have refused the request or produced an invalid response.");
   };
 
-  return { generateVirtualTryOn };
+  const analyzeBody = async (
+    modelImage: UploadedImage,
+    onProgress: (message: string) => void
+  ): Promise<BodyAnalysis> => {
+    onProgress("Analyzing body measurements...");
+    const client = getAiClient();
+    const modelPart = fileToGenerativePart(modelImage.base64, modelImage.mimeType);
+
+    const prompt = `You are a fashion fit and body measurement assistant.
+    You receive a single PERSON_IMAGE of one person standing.
+    From just this image, estimate the person's body in the most realistic and practical way possible.
+
+    Return a JSON object with keys:
+    estimated_height_in: number,        // person's approximate height in inches
+    bust_or_chest_in: number,          // fullest part of chest/bust
+    waist_in: number,                  // natural waist
+    hip_in: number,                    // fullest part of hips
+    build: "slim|medium|curvy|broad|athletic",
+    posture_notes: string,
+    confidence_0_to_1: number          // how confident you are in these estimates
+
+    Rules:
+    - Use reasonable, fashion-relevant ranges.
+    - If unsure, still give your best numeric estimate.`;
+
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash', // Updated to 2.5 Flash to match notebook recommendation
+      contents: { role: 'user', parts: [modelPart, { text: prompt }] },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            estimated_height_in: { type: SchemaType.NUMBER },
+            bust_or_chest_in: { type: SchemaType.NUMBER },
+            waist_in: { type: SchemaType.NUMBER },
+            hip_in: { type: SchemaType.NUMBER },
+            build: { type: SchemaType.STRING },
+            posture_notes: { type: SchemaType.STRING },
+            confidence_0_to_1: { type: SchemaType.NUMBER },
+          },
+          required: [
+            "estimated_height_in",
+            "bust_or_chest_in",
+            "waist_in",
+            "hip_in",
+            "build",
+            "posture_notes",
+            "confidence_0_to_1"
+          ]
+        }
+      }
+    });
+
+    if (!response.text) throw new Error("Failed to analyze body.");
+    return JSON.parse(response.text) as BodyAnalysis;
+  };
+
+  const recommendSize = async (
+    bodyAnalysis: BodyAnalysis,
+    productInfo: string,
+    availableSizes: string[],
+    onProgress: (message: string) => void
+  ): Promise<SizeRecommendation> => {
+    onProgress("Recommending size...");
+    const client = getAiClient();
+
+    const prompt = `You are a senior fashion fit expert.
+
+    ESTIMATED_BODY_MEASUREMENTS_JSON:
+    ${JSON.stringify(bodyAnalysis)}
+
+    PRODUCT_INFO_TEXT:
+    """${productInfo}"""
+
+    AVAILABLE_SIZES: [${availableSizes.join(', ')}]
+
+    Goals:
+    1) Infer the approximate base size for this model in THIS SPECIFIC GARMENT.
+    2) Decide which sizes are realistically TRY-ON-ABLE for this model.
+    3) Prefer natural, realistic fit decisions over extreme distortion.
+
+    Return JSON with keys:
+    base_size: "XS|S|M|L|XL|XXL|null",
+    try_on_sizes: ["sizes from AVAILABLE_SIZES that are reasonable to render"],
+    skipped_sizes: ["sizes from AVAILABLE_SIZES that are unrealistic"],
+    reason: "short, one liner for each size"`;
+
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: { role: 'user', parts: [{ text: prompt }] },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            base_size: { type: SchemaType.STRING, nullable: true },
+            try_on_sizes: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            skipped_sizes: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            reason: { type: SchemaType.STRING }
+          },
+          required: ["try_on_sizes", "skipped_sizes", "reason"]
+        }
+      }
+    });
+
+    if (!response.text) throw new Error("Failed to recommend size.");
+    return JSON.parse(response.text) as SizeRecommendation;
+  };
+
+  const generateSizeFitTryOn = async (
+    modelImage: UploadedImage,
+    garmentImage: UploadedImage,
+    sizeGuideImage: UploadedImage,
+    bodyAnalysis: BodyAnalysis,
+    targetSize: string,
+    productInfo: string,
+    outfitType: string,
+    onProgress: (message: string) => void
+  ): Promise<string> => {
+    onProgress(`Generating try-on for size ${targetSize}...`);
+    const client = getAiClient();
+
+    const modelPart = fileToGenerativePart(modelImage.base64, modelImage.mimeType);
+    const garmentPart = fileToGenerativePart(garmentImage.base64, garmentImage.mimeType);
+    const sizeGuidePart = fileToGenerativePart(sizeGuideImage.base64, sizeGuideImage.mimeType);
+
+    // Handle Aspect Ratio (reused from existing logic)
+    let aspectRatio = "1:1";
+    if (modelImage.width && modelImage.height) {
+      const ratio = modelImage.width / modelImage.height;
+      if (Math.abs(ratio - 16 / 9) < 0.1) aspectRatio = "16:9";
+      else if (Math.abs(ratio - 9 / 16) < 0.1) aspectRatio = "9:16";
+      else if (Math.abs(ratio - 4 / 3) < 0.1) aspectRatio = "4:3";
+      else if (Math.abs(ratio - 3 / 4) < 0.1) aspectRatio = "3:4";
+    }
+
+    const prompt = `You are a fashion virtual try-on engine.
+
+    Inputs:
+    1) PERSON_IMAGE (real person).
+    2) OUTFIT_IMAGE (product photo).
+    3) BRAND_SIZE_GUIDE_IMAGE (table with Size | Bust (in) | Waist (in) | Hip (in)).
+    4) TARGET_SIZE: ${targetSize}
+    5) OUTFIT_TYPE: ${outfitType}
+    6) ESTIMATED_BODY_MEASUREMENTS_JSON:
+    ${JSON.stringify(bodyAnalysis)}
+    7) PRODUCT_INFO_TEXT:
+    """${productInfo}"""
+
+    Tasks:
+    1. Use ESTIMATED_BODY_MEASUREMENTS_JSON as reference.
+    2. Read BRAND_SIZE_GUIDE_IMAGE to determine best 'true size'.
+    3. Use PRODUCT_INFO_TEXT to understand fit/fabric.
+    4. For TARGET_SIZE:
+       - If smaller than best size -> looks tight (tension lines).
+       - If matches best size -> perfect fit.
+       - If larger -> looks loose (drape/folds).
+    5. Preserve person's identity and background.
+
+    Strict rule:
+    - Do NOT modify the person’s body proportions to force fit.
+    - Only adjust the garment fit.
+
+    Generate ONE highly realistic try-on image.`;
+
+    const response = await client.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: { role: 'user', parts: [modelPart, garmentPart, sizeGuidePart, { text: prompt }] },
+      config: {
+        responseModalities: [Modality.IMAGE],
+        generationConfig: {
+          aspectRatio: aspectRatio
+        }
+      } as any
+    });
+
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (imagePart?.inlineData) {
+      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+    }
+
+    throw new Error("Failed to generate image.");
+  };
+
+  return { generateVirtualTryOn, analyzeBody, recommendSize, generateSizeFitTryOn };
 }
