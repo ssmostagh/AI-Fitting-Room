@@ -7,15 +7,27 @@ A web application that allows users to virtually try on clothing using AI. Built
 
 ## Features
 
-*   **Virtual Try-On**: Upload a user image and a garment image to generate a try-on result.
-*   **AI-Powered**: Uses Google's Gemini models for high-quality image generation.
-*   **Modern UI**: Built with React and Tailwind CSS for a responsive experience.
+*   **Virtual Try-On (Standard)**:
+    *   Upload a user photo and multiple garment images.
+    *   **"Same Garment" Logic**: Intelligent consolidation of multiple views (front, back, detail) into a single garment understanding.
+*   **Size & Fit Analysis (New)**:
+    *   **Body Measurement Estimation**: AI analyzes the user's photo to estimate Height, Chest, Waist, and Hips.
+    *   **Editable Data**: Users can fine-tune the estimated measurements for precision.
+    *   **Smart Size Recommendation**: Upload a brand's size chart to get a specific size recommendation (e.g., "M") based on body data.
+    *   **Size-Aware generation**: visualizing how a specific size (e.g., "L" vs "S") would actually fit (loose vs tight).
+*   **AI-Powered Backend**:
+    *   **Gemini 2.5 Flash**: For rapid body analysis and size logic.
+    *   **Gemini 3.0 Pro Image Preview**: For high-fidelity, photorealistic try-on generation.
 
 ## Tech Stack
 
-*   **Frontend**: React, Vite, TypeScript
-*   **Styling**: Tailwind CSS
-*   **AI**: Google Gemini API (`@google/genai`)
+*   **Frontend**: React 18, Vite, TypeScript
+*   **Styling**: Tailwind CSS, PostCSS
+*   **AI Models**:
+    *   `gemini-3-pro-image-preview` (Image Generation)
+    *   `gemini-2.5-flash` (Text/JSON Analysis)
+    *   `virtual-try-on` (Image Generation)
+*   **SDK**: Google GenAI SDK (`@google/genai`)
 
 ## Getting Started
 
@@ -29,8 +41,8 @@ A web application that allows users to virtually try on clothing using AI. Built
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://gitlab.com/google-cloud-ce/googlers/mostaghim/VTO-FBD.git
-    cd VTO-FBD
+    git clone https://github.com/ssmostagh/AI-Fitting-Room.git
+    cd AI-Fitting-Room
     ```
 
 2.  **Install dependencies:**
