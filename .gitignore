@@ -130,4 +130,4 @@ tmp
 *.gitkeep
 *.eslintcache
 *.vitest
-coverage
+coverage*.ipynb
